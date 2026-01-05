@@ -34,7 +34,7 @@ jobs:
 
       - name: Setup git refs
         run: |
-          git fetch origin ${{ inputs.base-branch }}:${{ inputs.base-branch }} || true
+          # Fetch the base branch (e.g., main) to compare against
           git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} || true
 
       - name: Checkout scripts from github-actions repo
@@ -54,7 +54,8 @@ jobs:
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          TICKETS=$(PR_TITLE="${PR_TITLE}" .github-actions-scripts/.github/scripts/extract-tickets.sh "origin/${{ inputs.base-branch }}" "origin/${{ github.head_ref }}")
+          # For PR from dev -> main, compare main (base) to HEAD (the PR commits)
+          TICKETS=$(PR_TITLE="${PR_TITLE}" .github-actions-scripts/.github/scripts/extract-tickets.sh "origin/${{ github.base_ref }}" "HEAD")
           echo "tickets=${TICKETS}" >> $GITHUB_OUTPUT
           echo "Found tickets: ${TICKETS}"
 

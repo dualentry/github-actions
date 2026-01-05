@@ -9,7 +9,6 @@ jobs:
   notify:
     uses: dualentry/github-actions/.github/workflows/linear-slack-pr-opened.yml@main
     with:
-      base-branch: dev
       # environment: production
     secrets:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
