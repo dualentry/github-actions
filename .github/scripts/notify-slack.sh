@@ -19,10 +19,12 @@ if [ "$TICKETS_JSON" = "[]" ] || [ -z "$TICKETS_JSON" ]; then
   exit 0
 fi
 
-# Fetch ticket details from Linear
-TICKET_DETAILS=""
+# Fetch ticket details from Linear and store in array
 TICKET_COUNT=$(echo "$TICKETS_JSON" | jq '. | length')
+MAX_TICKETS_PER_MESSAGE=10  # Tickets per Slack message
 
+# Fetch all ticket details
+declare -a TICKET_LINES
 for i in $(seq 0 $((TICKET_COUNT - 1))); do
   TICKET_ID=$(echo "$TICKETS_JSON" | jq -r ".[$i]")
 
@@ -46,12 +48,12 @@ EOF
 
   if [ "$TITLE" != "Unknown" ]; then
     if [ -n "$URL" ]; then
-      TICKET_DETAILS="${TICKET_DETAILS}\n• <${URL}|${TITLE}> (${TICKET_ID})"
+      TICKET_LINES+=("• <${URL}|${TITLE}> (${TICKET_ID})")
     else
-      TICKET_DETAILS="${TICKET_DETAILS}\n• ${TITLE} (${TICKET_ID})"
+      TICKET_LINES+=("• ${TITLE} (${TICKET_ID})")
     fi
   else
-    TICKET_DETAILS="${TICKET_DETAILS}\n• ${TICKET_ID}"
+    TICKET_LINES+=("• ${TICKET_ID}")
   fi
 done
 
@@ -59,21 +61,39 @@ done
 if [ "$EVENT_TYPE" = "pr_opened" ]; then
   EMOJI=":eyes:"
   TITLE_TEXT="New PR Ready for Review"
-  MESSAGE_TEXT="A pull request has been opened with the following tickets:"
+  MESSAGE_TEXT="A pull request has been opened with *${TICKET_COUNT} Linear tickets*:"
 elif [ "$EVENT_TYPE" = "pr_merged" ]; then
   EMOJI=":rocket:"
   TITLE_TEXT="Tickets Released"
-  MESSAGE_TEXT="The following tickets have been released:"
+  MESSAGE_TEXT="*${TICKET_COUNT} tickets* have been released:"
 else
   EMOJI=":information_source:"
   TITLE_TEXT="Linear Tickets Update"
-  MESSAGE_TEXT="Ticket information:"
+  MESSAGE_TEXT="*${TICKET_COUNT} tickets* included:"
 fi
 
-# Create Slack message payload
-SLACK_PAYLOAD=$(cat <<EOF
-{
-  "blocks": [
+# Calculate number of messages needed
+TOTAL_MESSAGES=$(( (TICKET_COUNT + MAX_TICKETS_PER_MESSAGE - 1) / MAX_TICKETS_PER_MESSAGE ))
+
+# Send messages (split into chunks if needed)
+for msg_num in $(seq 1 $TOTAL_MESSAGES); do
+  START_IDX=$(( (msg_num - 1) * MAX_TICKETS_PER_MESSAGE ))
+  END_IDX=$(( msg_num * MAX_TICKETS_PER_MESSAGE - 1 ))
+
+  # Don't exceed array bounds
+  if [ $END_IDX -ge $TICKET_COUNT ]; then
+    END_IDX=$((TICKET_COUNT - 1))
+  fi
+
+  # Build ticket list for this message
+  TICKET_DETAILS=""
+  for i in $(seq $START_IDX $END_IDX); do
+    TICKET_DETAILS="${TICKET_DETAILS}\n${TICKET_LINES[$i]}"
+  done
+
+  # Create header block (only for first message)
+  if [ $msg_num -eq 1 ]; then
+    HEADER_BLOCKS=$(cat <<EOF
     {
       "type": "header",
       "text": {
@@ -102,15 +122,43 @@ SLACK_PAYLOAD=$(cat <<EOF
       "type": "section",
       "text": {
         "type": "mrkdwn",
-        "text": "*${MESSAGE_TEXT}*${TICKET_DETAILS}"
+        "text": "${MESSAGE_TEXT}"
+      }
+    },
+EOF
+)
+  else
+    # Subsequent messages show part number
+    HEADER_BLOCKS=$(cat <<EOF
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*Part ${msg_num}/${TOTAL_MESSAGES}*"
+      }
+    },
+EOF
+)
+  fi
+
+  # Create Slack message payload
+  SLACK_PAYLOAD=$(cat <<EOF
+{
+  "blocks": [
+    ${HEADER_BLOCKS}
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "${TICKET_DETAILS}"
       }
     }
 EOF
 )
 
-# Add PR URL if available
-if [ -n "$PR_URL" ]; then
-  SLACK_PAYLOAD=$(cat <<EOF
+  # Add PR URL if available (on all messages)
+  if [ -n "$PR_URL" ]; then
+    SLACK_PAYLOAD=$(cat <<EOF
 ${SLACK_PAYLOAD},
     {
       "type": "section",
@@ -121,22 +169,30 @@ ${SLACK_PAYLOAD},
     }
 EOF
 )
-fi
+  fi
 
-# Close the JSON
-SLACK_PAYLOAD="${SLACK_PAYLOAD}
+  # Close the JSON
+  SLACK_PAYLOAD="${SLACK_PAYLOAD}
   ]
 }"
 
-# Send to Slack
-RESPONSE=$(curl -s -X POST \
-  -H "Content-Type: application/json" \
-  -d "$SLACK_PAYLOAD" \
-  "$SLACK_WEBHOOK_URL")
+  # Send to Slack
+  RESPONSE=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d "$SLACK_PAYLOAD" \
+    "$SLACK_WEBHOOK_URL")
 
-if [ "$RESPONSE" = "ok" ]; then
-  echo "Slack notification sent successfully!"
-else
-  echo "Failed to send Slack notification. Response: $RESPONSE"
-  exit 1
-fi
+  if [ "$RESPONSE" = "ok" ]; then
+    echo "Slack notification part ${msg_num}/${TOTAL_MESSAGES} sent successfully!"
+  else
+    echo "Failed to send Slack notification part ${msg_num}/${TOTAL_MESSAGES}. Response: $RESPONSE"
+    exit 1
+  fi
+
+  # Small delay between messages to avoid rate limiting
+  if [ $msg_num -lt $TOTAL_MESSAGES ]; then
+    sleep 1
+  fi
+done
+
+echo "All ${TOTAL_MESSAGES} Slack message(s) sent successfully!"
