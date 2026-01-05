@@ -6,14 +6,6 @@ This repository contains reusable GitHub Actions workflows that integrate Linear
 2. Send formatted notifications to Slack
 3. Update Linear ticket status to "Done" after merge
 
-## Features
-
-- **PR Opened Notification**: When a PR is created against `main`, sends a Slack message listing all Linear tickets involved
-- **PR Merged Notification**: When a PR is merged to `main`, sends a "Tickets Released" message and updates Linear ticket status
-- **Automatic Ticket Extraction**: Supports ticket formats like `ACC-123`, `DEV-456`, `acc_789`, `dev-012`
-- **Rich Slack Messages**: Includes ticket titles, links, application name, and environment
-- **Flexible Configuration**: Customizable base branch, environment, and status update behavior
-
 ## Prerequisites
 
 Your GitHub organization must have the following secrets configured:
