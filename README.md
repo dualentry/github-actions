@@ -245,15 +245,6 @@ cd .github/scripts
 - Make sure scripts are executable: `chmod +x .github/scripts/*.sh`
 - The workflows automatically set execute permissions, but manual runs may require this
 
-## Contributing
-
-When contributing to this repository:
-
-1. Test scripts locally before committing
-2. Update README with any new features or changes
-3. Follow existing code style and patterns
-4. Add examples for new workflow configurations
-
 ## License
 
 Internal use only - DualEntry organization.
