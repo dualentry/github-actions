@@ -8,10 +8,7 @@ jobs:
   release:
     uses: dualentry/github-actions/.github/workflows/linear-slack-pr-merged.yml@main
     with:
-      base-branch: dev
-      # environment: production
-      update-linear-status: true
+      # update-linear-status: true (if we want to update the linear status to done)
     secrets:
       LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
-      # GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Only needed if github-actions repo is private
