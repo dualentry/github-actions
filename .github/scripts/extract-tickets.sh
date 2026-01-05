@@ -2,7 +2,8 @@
 set -euo pipefail
 
 # Extract Linear ticket IDs from git commits
-# Supports formats: ACC-123, DEV-456, acc-123, dev_456, etc.
+# Supports formats: [PREFIX]-123 where PREFIX is any 2-10 letter code
+# Examples: ACC-123, DEV-456, MREC-789, RECS-012, etc.
 # Usage: ./extract-tickets.sh <base-ref> <head-ref>
 
 BASE_REF="${1:-origin/dev}"
@@ -15,9 +16,9 @@ COMMITS=$(git log --oneline "${BASE_REF}..${HEAD_REF}" 2>/dev/null || echo "")
 PR_TITLE="${PR_TITLE:-}"
 ALL_TEXT="${COMMITS}"$'\n'"${PR_TITLE}"
 
-# Extract ticket IDs using regex pattern: (ACC|DEV|REP|acc|dev|rep)(-|_)<number>
-# This will match: ACC-123, DEV-456, acc-789, dev_012, etc.
-TICKET_IDS=$(echo "$ALL_TEXT" | grep -oiE '(acc|dev|rep)[-_][0-9]+' | sort -u || true)
+# Extract ticket IDs using regex pattern: [A-Za-z]{2,10}(-|_)<number>
+# This will match any prefix: ACC-123, DEV-456, MREC-789, RECS-012, etc.
+TICKET_IDS=$(echo "$ALL_TEXT" | grep -oiE '[a-z]{2,10}[-_][0-9]+' | sort -u || true)
 
 if [ -z "$TICKET_IDS" ]; then
   echo "[]"

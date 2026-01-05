@@ -93,9 +93,9 @@ jobs:
             );
 
             if (existingComment) {
-              // Check if ticket list changed
-              const existingTickets = existingComment.body.match(/- (DEV|ACC)-\d+/gi) || [];
-              const newTickets = ticketList.match(/- (DEV|ACC)-\d+/gi) || [];
+              // Check if ticket list changed (matches any prefix pattern like DEV-123, MREC-456, etc.)
+              const existingTickets = existingComment.body.match(/- [A-Z]{2,10}-\d+/gi) || [];
+              const newTickets = ticketList.match(/- [A-Z]{2,10}-\d+/gi) || [];
 
               const ticketsChanged = JSON.stringify(existingTickets.sort()) !== JSON.stringify(newTickets.sort());
 
