@@ -46,6 +46,9 @@ EOF
   TITLE=$(echo "$RESPONSE" | jq -r '.data.issue.title // "Unknown"')
   URL=$(echo "$RESPONSE" | jq -r '.data.issue.url // ""')
 
+  # Remove newlines from title (jq will handle other escaping)
+  TITLE=$(echo "$TITLE" | tr -d '\n\r')
+
   if [ "$TITLE" != "Unknown" ]; then
     if [ -n "$URL" ]; then
       TICKET_LINES+=("• <${URL}|${TITLE}> (${TICKET_ID})")
@@ -85,96 +88,108 @@ for msg_num in $(seq 1 $TOTAL_MESSAGES); do
     END_IDX=$((TICKET_COUNT - 1))
   fi
 
-  # Build ticket list for this message
+  # Build ticket list for this message (join with newlines)
   TICKET_DETAILS=""
   for i in $(seq $START_IDX $END_IDX); do
-    TICKET_DETAILS="${TICKET_DETAILS}\n${TICKET_LINES[$i]}"
+    if [ -n "$TICKET_DETAILS" ]; then
+      TICKET_DETAILS="${TICKET_DETAILS}
+${TICKET_LINES[$i]}"
+    else
+      TICKET_DETAILS="${TICKET_LINES[$i]}"
+    fi
   done
 
-  # Create header block (only for first message)
+  # Build JSON payload using jq for proper escaping
   if [ $msg_num -eq 1 ]; then
-    HEADER_BLOCKS=$(cat <<EOF
-    {
-      "type": "header",
-      "text": {
-        "type": "plain_text",
-        "text": "${EMOJI} ${TITLE_TEXT}",
-        "emoji": true
-      }
-    },
-    {
-      "type": "section",
-      "fields": [
-        {
-          "type": "mrkdwn",
-          "text": "*Application:*\n\`${REPOSITORY_NAME}\`"
-        },
-        {
-          "type": "mrkdwn",
-          "text": "*Environment:*\n\`${ENVIRONMENT}\`"
-        }
-      ]
-    },
-    {
-      "type": "divider"
-    },
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "${MESSAGE_TEXT}"
-      }
-    },
-EOF
-)
+    # First message with full header
+    SLACK_PAYLOAD=$(jq -n \
+      --arg emoji "$EMOJI" \
+      --arg title "$TITLE_TEXT" \
+      --arg app "$REPOSITORY_NAME" \
+      --arg env "$ENVIRONMENT" \
+      --arg msg "$MESSAGE_TEXT" \
+      --arg tickets "$TICKET_DETAILS" \
+      --arg pr_url "${PR_URL:-}" \
+      '{
+        blocks: [
+          {
+            type: "header",
+            text: {
+              type: "plain_text",
+              text: ($emoji + " " + $title),
+              emoji: true
+            }
+          },
+          {
+            type: "section",
+            fields: [
+              {
+                type: "mrkdwn",
+                text: ("*Application:*\n`" + $app + "`")
+              },
+              {
+                type: "mrkdwn",
+                text: ("*Environment:*\n`" + $env + "`")
+              }
+            ]
+          },
+          {
+            type: "divider"
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: $msg
+            }
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: $tickets
+            }
+          }
+        ] + (if $pr_url != "" then [{
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ("<" + $pr_url + "|View Pull Request>")
+          }
+        }] else [] end)
+      }')
   else
-    # Subsequent messages show part number
-    HEADER_BLOCKS=$(cat <<EOF
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*Part ${msg_num}/${TOTAL_MESSAGES}*"
-      }
-    },
-EOF
-)
+    # Subsequent messages with part number
+    PART_TEXT="*Part ${msg_num}/${TOTAL_MESSAGES}*"
+    SLACK_PAYLOAD=$(jq -n \
+      --arg part "$PART_TEXT" \
+      --arg tickets "$TICKET_DETAILS" \
+      --arg pr_url "${PR_URL:-}" \
+      '{
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: $part
+            }
+          },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: $tickets
+            }
+          }
+        ] + (if $pr_url != "" then [{
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ("<" + $pr_url + "|View Pull Request>")
+          }
+        }] else [] end)
+      }')
   fi
-
-  # Create Slack message payload
-  SLACK_PAYLOAD=$(cat <<EOF
-{
-  "blocks": [
-    ${HEADER_BLOCKS}
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "${TICKET_DETAILS}"
-      }
-    }
-EOF
-)
-
-  # Add PR URL if available (on all messages)
-  if [ -n "$PR_URL" ]; then
-    SLACK_PAYLOAD=$(cat <<EOF
-${SLACK_PAYLOAD},
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "<${PR_URL}|View Pull Request>"
-      }
-    }
-EOF
-)
-  fi
-
-  # Close the JSON
-  SLACK_PAYLOAD="${SLACK_PAYLOAD}
-  ]
-}"
 
   # Send to Slack
   RESPONSE=$(curl -s -X POST \
