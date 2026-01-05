@@ -1,0 +1,97 @@
+name: Linear Slack - PR Merged
+
+on:
+  workflow_call:
+    inputs:
+      base-branch:
+        description: 'Base branch to compare against (e.g., dev)'
+        required: false
+        type: string
+        default: 'dev'
+      environment:
+        description: 'Environment name (e.g., dev, production)'
+        required: false
+        type: string
+        default: 'production'
+      update-linear-status:
+        description: 'Whether to update Linear ticket status to Done'
+        required: false
+        type: boolean
+        default: true
+    secrets:
+      LINEAR_API_KEY:
+        required: true
+      SLACK_RELEASE_CHANGELOG_WEBHOOK:
+        required: true
+
+jobs:
+  release-tickets:
+    name: Release Tickets and Update Status
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup git refs
+        run: |
+          git fetch origin ${{ inputs.base-branch }}:${{ inputs.base-branch }} || true
+
+      - name: Checkout scripts from github-actions repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/github-actions
+          path: .github-actions-scripts
+          sparse-checkout: |
+            .github/scripts
+
+      - name: Make scripts executable
+        run: |
+          chmod +x .github-actions-scripts/.github/scripts/*.sh
+
+      - name: Extract ticket IDs from merge
+        id: extract
+        run: |
+          # Get commits from the merge (comparing with base branch)
+          TICKETS=$(.github-actions-scripts/.github/scripts/extract-tickets.sh "origin/${{ inputs.base-branch }}" "HEAD")
+          echo "tickets=${TICKETS}" >> $GITHUB_OUTPUT
+          echo "Found tickets: ${TICKETS}"
+
+      - name: Send Slack notification
+        if: steps.extract.outputs.tickets != '[]'
+        env:
+          SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          PR_URL: ''
+        run: |
+          .github-actions-scripts/.github/scripts/notify-slack.sh "pr_merged" '${{ steps.extract.outputs.tickets }}'
+
+      - name: Update Linear ticket status to Done
+        if: steps.extract.outputs.tickets != '[]' && inputs.update-linear-status
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          .github-actions-scripts/.github/scripts/update-linear-status.sh '${{ steps.extract.outputs.tickets }}'
+
+      - name: Summary
+        if: steps.extract.outputs.tickets != '[]'
+        run: |
+          echo "### Tickets Released" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.extract.outputs.tickets }}' | jq -r '.[] | "- " + .' >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.update-linear-status }}" = "true" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Linear ticket status updated to **Done**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: No tickets found
+        if: steps.extract.outputs.tickets == '[]'
+        run: |
+          echo "### No Linear Tickets Found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "No Linear tickets were found in the merged commits." >> $GITHUB_STEP_SUMMARY

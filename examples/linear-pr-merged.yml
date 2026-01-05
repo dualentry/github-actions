@@ -1,0 +1,16 @@
+name: Linear - PR Merged
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  release:
+    uses: dualentry/github-actions/.github/workflows/linear-slack-pr-merged.yml@main
+    with:
+      base-branch: dev
+      # environment: production
+      update-linear-status: true
+    secrets:
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}

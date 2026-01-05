@@ -1,0 +1,101 @@
+name: Linear Slack - PR Opened
+
+on:
+  workflow_call:
+    inputs:
+      base-branch:
+        description: 'Base branch to compare against (e.g., dev)'
+        required: false
+        type: string
+        default: 'dev'
+      environment:
+        description: 'Environment name (e.g., dev, production)'
+        required: false
+        type: string
+        default: 'production'
+    secrets:
+      LINEAR_API_KEY:
+        required: true
+      SLACK_RELEASE_CHANGELOG_WEBHOOK:
+        required: true
+      GH_TOKEN:
+        required: false
+
+jobs:
+  notify-tickets:
+    name: Extract Tickets and Notify Slack
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup git refs
+        run: |
+          git fetch origin ${{ inputs.base-branch }}:${{ inputs.base-branch }} || true
+          git fetch origin ${{ github.base_ref }}:${{ github.base_ref }} || true
+
+      - name: Checkout scripts from github-actions repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/github-actions
+          path: .github-actions-scripts
+          sparse-checkout: |
+            .github/scripts
+
+      - name: Make scripts executable
+        run: |
+          chmod +x .github-actions-scripts/.github/scripts/*.sh
+
+      - name: Extract ticket IDs
+        id: extract
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          TICKETS=$(PR_TITLE="${PR_TITLE}" .github-actions-scripts/.github/scripts/extract-tickets.sh "origin/${{ inputs.base-branch }}" "origin/${{ github.head_ref }}")
+          echo "tickets=${TICKETS}" >> $GITHUB_OUTPUT
+          echo "Found tickets: ${TICKETS}"
+
+      - name: Send Slack notification
+        if: steps.extract.outputs.tickets != '[]'
+        env:
+          SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          .github-actions-scripts/.github/scripts/notify-slack.sh "pr_opened" '${{ steps.extract.outputs.tickets }}'
+
+      - name: Comment on PR with tickets
+        if: steps.extract.outputs.tickets != '[]'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          script: |
+            const tickets = ${{ steps.extract.outputs.tickets }};
+            const ticketList = tickets.map(t => `- ${t}`).join('\n');
+            const body = `## Linear Tickets\n\nThis PR includes the following Linear tickets:\n\n${ticketList}\n\n> Notification sent to product team on Slack.`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
+
+      - name: Summary
+        if: steps.extract.outputs.tickets != '[]'
+        run: |
+          echo "### Tickets Notified" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.extract.outputs.tickets }}' | jq -r '.[] | "- " + .' >> $GITHUB_STEP_SUMMARY
+
+      - name: No tickets found
+        if: steps.extract.outputs.tickets == '[]'
+        run: |
+          echo "### No Linear Tickets Found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "No Linear tickets were found in the commits or PR title." >> $GITHUB_STEP_SUMMARY

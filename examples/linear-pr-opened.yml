@@ -1,0 +1,17 @@
+name: Linear - PR Opened
+
+on:
+  pull_request:
+    branches: ["main"]
+    types: [opened, reopened, synchronize]
+
+jobs:
+  notify:
+    uses: dualentry/github-actions/.github/workflows/linear-slack-pr-opened.yml@main
+    with:
+      base-branch: dev
+      # environment: production
+    secrets:
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+      SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
