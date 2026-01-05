@@ -93,14 +93,24 @@ jobs:
             );
 
             if (existingComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: body
-              });
-              console.log('Updated existing comment');
+              // Check if ticket list changed
+              const existingTickets = existingComment.body.match(/- (DEV|ACC)-\d+/gi) || [];
+              const newTickets = ticketList.match(/- (DEV|ACC)-\d+/gi) || [];
+
+              const ticketsChanged = JSON.stringify(existingTickets.sort()) !== JSON.stringify(newTickets.sort());
+
+              if (ticketsChanged) {
+                // Update existing comment only if tickets changed
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: body
+                });
+                console.log('Updated existing comment - tickets changed');
+              } else {
+                console.log('Skipped update - no ticket changes detected');
+              }
             } else {
               // Create new comment
               await github.rest.issues.createComment({
