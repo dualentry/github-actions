@@ -102,93 +102,171 @@ ${TICKET_LINES[$i]}"
   # Build JSON payload using jq for proper escaping
   if [ $msg_num -eq 1 ]; then
     # First message with full header
-    SLACK_PAYLOAD=$(jq -n \
-      --arg emoji "$EMOJI" \
-      --arg title "$TITLE_TEXT" \
-      --arg app "$REPOSITORY_NAME" \
-      --arg env "$ENVIRONMENT" \
-      --arg msg "$MESSAGE_TEXT" \
-      --arg tickets "$TICKET_DETAILS" \
-      --arg pr_url "${PR_URL:-}" \
-      '{
-        blocks: [
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: ($emoji + " " + $title),
-              emoji: true
-            }
-          },
-          {
-            type: "section",
-            fields: [
-              {
-                type: "mrkdwn",
-                text: ("*Application:*\n`" + $app + "`")
-              },
-              {
-                type: "mrkdwn",
-                text: ("*Environment:*\n`" + $env + "`")
+    if [ -n "$PR_URL" ]; then
+      SLACK_PAYLOAD=$(jq -n \
+        --arg emoji "$EMOJI" \
+        --arg title "$TITLE_TEXT" \
+        --arg app "$REPOSITORY_NAME" \
+        --arg env "$ENVIRONMENT" \
+        --arg msg "$MESSAGE_TEXT" \
+        --arg tickets "$TICKET_DETAILS" \
+        --arg pr_url "$PR_URL" \
+        '{
+          blocks: [
+            {
+              type: "header",
+              text: {
+                type: "plain_text",
+                text: ($emoji + " " + $title),
+                emoji: true
               }
-            ]
-          },
-          {
-            type: "divider"
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: $msg
+            },
+            {
+              type: "section",
+              fields: [
+                {
+                  type: "mrkdwn",
+                  text: ("*Application:*\n`" + $app + "`")
+                },
+                {
+                  type: "mrkdwn",
+                  text: ("*Environment:*\n`" + $env + "`")
+                }
+              ]
+            },
+            {
+              type: "divider"
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $msg
+              }
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $tickets
+              }
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: ("<" + $pr_url + "|View Pull Request>")
+              }
             }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: $tickets
+          ]
+        }')
+    else
+      SLACK_PAYLOAD=$(jq -n \
+        --arg emoji "$EMOJI" \
+        --arg title "$TITLE_TEXT" \
+        --arg app "$REPOSITORY_NAME" \
+        --arg env "$ENVIRONMENT" \
+        --arg msg "$MESSAGE_TEXT" \
+        --arg tickets "$TICKET_DETAILS" \
+        '{
+          blocks: [
+            {
+              type: "header",
+              text: {
+                type: "plain_text",
+                text: ($emoji + " " + $title),
+                emoji: true
+              }
+            },
+            {
+              type: "section",
+              fields: [
+                {
+                  type: "mrkdwn",
+                  text: ("*Application:*\n`" + $app + "`")
+                },
+                {
+                  type: "mrkdwn",
+                  text: ("*Environment:*\n`" + $env + "`")
+                }
+              ]
+            },
+            {
+              type: "divider"
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $msg
+              }
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $tickets
+              }
             }
-          }
-        ] + (if $pr_url != "" then [{
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: ("<" + $pr_url + "|View Pull Request>")
-          }
-        }] else [] end)
-      }')
+          ]
+        }')
+    fi
   else
     # Subsequent messages with part number
     PART_TEXT="*Part ${msg_num}/${TOTAL_MESSAGES}*"
-    SLACK_PAYLOAD=$(jq -n \
-      --arg part "$PART_TEXT" \
-      --arg tickets "$TICKET_DETAILS" \
-      --arg pr_url "${PR_URL:-}" \
-      '{
-        blocks: [
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: $part
+    if [ -n "$PR_URL" ]; then
+      SLACK_PAYLOAD=$(jq -n \
+        --arg part "$PART_TEXT" \
+        --arg tickets "$TICKET_DETAILS" \
+        --arg pr_url "$PR_URL" \
+        '{
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $part
+              }
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $tickets
+              }
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: ("<" + $pr_url + "|View Pull Request>")
+              }
             }
-          },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: $tickets
+          ]
+        }')
+    else
+      SLACK_PAYLOAD=$(jq -n \
+        --arg part "$PART_TEXT" \
+        --arg tickets "$TICKET_DETAILS" \
+        '{
+          blocks: [
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $part
+              }
+            },
+            {
+              type: "section",
+              text: {
+                type: "mrkdwn",
+                text: $tickets
+              }
             }
-          }
-        ] + (if $pr_url != "" then [{
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: ("<" + $pr_url + "|View Pull Request>")
-          }
-        }] else [] end)
-      }')
+          ]
+        }')
+    fi
   fi
 
   # Send to Slack
