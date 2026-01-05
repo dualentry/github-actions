@@ -4,17 +4,17 @@ on:
   workflow_call:
     inputs:
       base-branch:
-        description: 'Base branch to compare against (e.g., dev)'
+        description: "Base branch to compare against (e.g., dev)"
         required: false
         type: string
-        default: 'dev'
+        default: "dev"
       environment:
-        description: 'Environment name (e.g., dev, production)'
+        description: "Environment name (e.g., dev, production)"
         required: false
         type: string
-        default: 'production'
+        default: "production"
       update-linear-status:
-        description: 'Whether to update Linear ticket status to Done'
+        description: "Whether to update Linear ticket status to Done"
         required: false
         type: boolean
         default: true
@@ -24,7 +24,7 @@ on:
       SLACK_RELEASE_CHANGELOG_WEBHOOK:
         required: true
       GH_TOKEN:
-        required: true
+        required: false
 
 jobs:
   release-tickets:
@@ -45,7 +45,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/github-actions
-          token: ${{ secrets.GH_TOKEN }}
           path: .github-actions-scripts
           sparse-checkout: |
             .github/scripts
@@ -69,7 +68,7 @@ jobs:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           REPOSITORY_NAME: ${{ github.event.repository.name }}
           ENVIRONMENT: ${{ inputs.environment }}
-          PR_URL: ''
+          PR_URL: ""
         run: |
           .github-actions-scripts/.github/scripts/notify-slack.sh "pr_merged" '${{ steps.extract.outputs.tickets }}'
 
