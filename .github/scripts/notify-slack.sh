@@ -8,11 +8,66 @@ set -euo pipefail
 EVENT_TYPE="${1:-pr_opened}"
 TICKETS_JSON="${2:-[]}"
 SLACK_WEBHOOK_URL="${SLACK_RELEASE_CHANGELOG_WEBHOOK}"
-LINEAR_API_KEY="${LINEAR_API_KEY}"
+LINEAR_API_KEY="${LINEAR_API_KEY:-}"
 REPOSITORY_NAME="${REPOSITORY_NAME:-unknown}"
 ENVIRONMENT="${ENVIRONMENT:-unknown}"
 PR_URL="${PR_URL:-}"
 
+# For pr_merged, send simple notification without tickets
+if [ "$EVENT_TYPE" = "pr_merged" ]; then
+  SLACK_PAYLOAD=$(jq -n \
+    --arg app "$REPOSITORY_NAME" \
+    --arg env "$ENVIRONMENT" \
+    --arg pr_url "$PR_URL" \
+    '{
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: ":rocket: Release Deployed",
+            emoji: true
+          }
+        },
+        {
+          type: "section",
+          fields: [
+            {
+              type: "mrkdwn",
+              text: ("*Application:*\n`" + $app + "`")
+            },
+            {
+              type: "mrkdwn",
+              text: ("*Environment:*\n`" + $env + "`")
+            }
+          ]
+        }
+      ] + (if $pr_url != "" then [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: ("<" + $pr_url + "|View Pull Request>")
+          }
+        }
+      ] else [] end)
+    }')
+
+  RESPONSE=$(curl -s -X POST \
+    -H "Content-Type: application/json" \
+    -d "$SLACK_PAYLOAD" \
+    "$SLACK_WEBHOOK_URL")
+
+  if [ "$RESPONSE" = "ok" ]; then
+    echo "Slack notification sent successfully!"
+  else
+    echo "Failed to send Slack notification. Response: $RESPONSE"
+    exit 1
+  fi
+  exit 0
+fi
+
+# For pr_opened, include ticket details
 # Exit early if no tickets
 if [ "$TICKETS_JSON" = "[]" ] || [ -z "$TICKETS_JSON" ]; then
   echo "No tickets found. Skipping Slack notification."
@@ -60,20 +115,9 @@ EOF
   fi
 done
 
-# Build Slack message based on event type
-if [ "$EVENT_TYPE" = "pr_opened" ]; then
-  EMOJI=":eyes:"
-  TITLE_TEXT="New PR Ready for Review"
-  MESSAGE_TEXT="A pull request has been opened with *${TICKET_COUNT} Linear tickets*:"
-elif [ "$EVENT_TYPE" = "pr_merged" ]; then
-  EMOJI=":rocket:"
-  TITLE_TEXT="Tickets Released"
-  MESSAGE_TEXT="*${TICKET_COUNT} tickets* have been released:"
-else
-  EMOJI=":information_source:"
-  TITLE_TEXT="Linear Tickets Update"
-  MESSAGE_TEXT="*${TICKET_COUNT} tickets* included:"
-fi
+EMOJI=":eyes:"
+TITLE_TEXT="New PR Ready for Review"
+MESSAGE_TEXT="A pull request has been opened with *${TICKET_COUNT} Linear tickets*:"
 
 # Calculate number of messages needed
 TOTAL_MESSAGES=$(( (TICKET_COUNT + MAX_TICKETS_PER_MESSAGE - 1) / MAX_TICKETS_PER_MESSAGE ))
