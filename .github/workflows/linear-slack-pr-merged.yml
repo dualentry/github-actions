@@ -17,7 +17,7 @@ on:
         description: "Whether to update Linear ticket status to Done"
         required: false
         type: boolean
-        default: false
+        default: true
     secrets:
       LINEAR_API_KEY:
         required: true
