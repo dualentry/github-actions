@@ -19,8 +19,7 @@ if [ "$EVENT_TYPE" = "pr_merged" ]; then
     --arg app "$REPOSITORY_NAME" \
     --arg env "$ENVIRONMENT" \
     --arg pr_url "$PR_URL" \
-    '{
-      blocks: [
+    '{ blocks: ([
         {
           type: "header",
           text: {
@@ -50,7 +49,7 @@ if [ "$EVENT_TYPE" = "pr_merged" ]; then
             text: ("<" + $pr_url + "|View Pull Request>")
           }
         }
-      ] else [] end)
+      ] else [] end))
     }')
 
   RESPONSE=$(curl -s -X POST \
