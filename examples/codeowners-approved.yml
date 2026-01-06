@@ -1,0 +1,30 @@
+# Copy this file to .github/workflows/codeowners-approved.yml in your repository
+#
+# IMPORTANT: This workflow file must exist on the default branch for the
+# pull_request_review trigger to work. Merge this to main/master first.
+#
+# Prerequisites:
+# 1. Enable branch protection on your target branch with:
+#    - Require a pull request before merging
+#    - Require approvals (>= 1)
+#    - Require review from Code Owners
+# 2. Create a CODEOWNERS file in your repo
+# 3. Add SLACK_RELEASE_CHANGELOG_WEBHOOK secret (Slack incoming webhook)
+
+name: CODEOWNERS Verification Step
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+# Minimum permissions required
+permissions:
+  pull-requests: read
+  issues: write
+  contents: read
+
+jobs:
+  notify:
+    uses: dualentry/github-actions/.github/workflows/codeowners-approved-slack.yml@main
+    secrets:
+      SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
