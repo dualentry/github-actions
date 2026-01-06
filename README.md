@@ -82,6 +82,42 @@ jobs:
       SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
 ```
 
+#### For CODEOWNERS Approval Events
+
+Create `.github/workflows/codeowners-approved.yml`:
+
+```yaml
+name: CODEOWNERS Approved - Slack
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  pull-requests: read
+  issues: write
+  contents: read
+
+jobs:
+  notify:
+    uses: dualentry/github-actions/.github/workflows/codeowners-approved-slack.yml@main
+    # with:
+    #   skip-draft: true                                    # Skip draft PRs (default: true)
+    #   slack-message-prefix: ":rocket: Ready for merge"   # Custom message prefix
+    secrets:
+      SLACK_RELEASE_CHANGELOG_WEBHOOK: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
+```
+
+**Prerequisites for CODEOWNERS approval notifications:**
+
+1. Enable branch protection on your target branch with:
+   - Require a pull request before merging
+   - Require approvals (>= 1)
+   - **Require review from Code Owners** (this is key!)
+2. Create a `CODEOWNERS` file in your repo
+3. Add `SLACK_RELEASE_CHANGELOG_WEBHOOK` secret (Slack incoming webhook)
+4. **Important**: This workflow file must exist on the default branch for the `pull_request_review` trigger to work
+
 ### 2. Workflow Inputs
 
 #### linear-slack-pr-opened.yml
@@ -98,6 +134,18 @@ jobs:
 | `base-branch` | Base branch to compare against | No | `dev` |
 | `environment` | Environment name for Slack message | No | `production` |
 | `update-linear-status` | Whether to update Linear ticket status to Done | No | `true` |
+
+#### codeowners-approved-slack.yml
+
+| Input | Description | Required | Default |
+|-------|-------------|----------|---------|
+| `skip-draft` | Skip notification for draft PRs | No | `true` |
+| `slack-message-prefix` | Custom prefix for Slack message (emoji + text) | No | `:white_check_mark: CODEOWNERS gate satisfied` |
+
+| Secret | Description | Required |
+|--------|-------------|----------|
+| `SLACK_RELEASE_CHANGELOG_WEBHOOK` | Slack incoming webhook URL | Yes |
+| `GH_TOKEN` | GitHub token with PR read access | No (uses `GITHUB_TOKEN`) |
 
 ### 3. Example Workflow for Dev Branch
 
@@ -157,6 +205,21 @@ Environment: `production`
 • New endpoint to get organization parent company defaults (DEV-8281)
 • Add onboarding checklist visibility endpoints (DEV-8282)
 ```
+
+### CODEOWNERS Approved
+
+```
+✅ CODEOWNERS gate satisfied
+PR #123 — feat: add new feature
+Base: `main`  Head: `abc1234...`
+Approved by: `reviewer-username`
+```
+
+**Behavior notes:**
+
+- Only triggers when the `reviewDecision` becomes `APPROVED` (i.e., all required CODEOWNERS have approved)
+- De-duplicates per head SHA: if you push new commits and get re-approved, it will notify again
+- Adds a hidden marker comment to track which SHA was notified
 
 ## Scripts
 
