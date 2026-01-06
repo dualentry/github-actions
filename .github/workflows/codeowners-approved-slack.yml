@@ -114,27 +114,6 @@ jobs:
               "text": "${{ inputs.slack-message-prefix }}\n<${{ steps.pr.outputs.url }}|PR #${{ steps.pr.outputs.number }} — ${{ steps.pr.outputs.title }}>\nBase: `${{ steps.pr.outputs.base }}`  Head: `${{ steps.pr.outputs.head_sha }}`\nApproved by: `${{ github.event.review.user.login }}`"
             }
 
-      - name: Add marker comment (dedupe for this SHA)
-        if: |
-          (inputs.skip-draft == false || steps.pr.outputs.is_draft != 'true') &&
-          (inputs.require-full-approval == false || steps.pr.outputs.review_decision == 'APPROVED') &&
-          steps.pr.outputs.already_notified != 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_TOKEN || github.token }}
-          script: |
-            const { owner, repo } = context.repo;
-            const prNumber = context.payload.pull_request.number;
-            const marker = `${{ steps.pr.outputs.marker }}`;
-            const headSha = `${{ steps.pr.outputs.head_sha }}`;
-
-            await github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: prNumber,
-              body: `${marker}\n:bell: Slack notified for head SHA \`${headSha}\`.`,
-            });
-
       - name: Summary (notification sent)
         if: |
           (inputs.skip-draft == false || steps.pr.outputs.is_draft != 'true') &&
