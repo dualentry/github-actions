@@ -107,12 +107,12 @@ jobs:
           steps.pr.outputs.already_notified != 'true'
         uses: slackapi/slack-github-action@v2
         with:
+          webhook-type: incoming-webhook
+          webhook: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
           payload: |
             {
               "text": "${{ inputs.slack-message-prefix }}\n<${{ steps.pr.outputs.url }}|PR #${{ steps.pr.outputs.number }} — ${{ steps.pr.outputs.title }}>\nBase: `${{ steps.pr.outputs.base }}`  Head: `${{ steps.pr.outputs.head_sha }}`\nApproved by: `${{ github.event.review.user.login }}`"
             }
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
 
       - name: Add marker comment (dedupe for this SHA)
         if: |
