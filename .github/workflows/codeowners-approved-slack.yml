@@ -111,7 +111,10 @@ jobs:
           webhook: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
           payload: |
             {
-              "text": "${{ inputs.slack-message-prefix }}\n<${{ steps.pr.outputs.url }}|PR #${{ steps.pr.outputs.number }} — ${{ steps.pr.outputs.title }}>\nBase: `${{ steps.pr.outputs.base }}`  Head: `${{ steps.pr.outputs.head_sha }}`\nApproved by: `${{ github.event.review.user.login }}`"
+              "text": ${{ toJSON(format('{0}
+<{1}|PR #{2} — {3}>
+Base: `{4}`  Head: `{5}`
+Approved by: `{6}`', inputs.slack-message-prefix, steps.pr.outputs.url, steps.pr.outputs.number, steps.pr.outputs.title, steps.pr.outputs.base, steps.pr.outputs.head_sha, github.event.review.user.login)) }}
             }
 
       - name: Summary (notification sent)
