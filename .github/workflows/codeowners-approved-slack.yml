@@ -100,6 +100,22 @@ jobs:
           echo "| Review Decision | ${{ steps.pr.outputs.review_decision }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Already Notified | ${{ steps.pr.outputs.already_notified }} |" >> $GITHUB_STEP_SUMMARY
 
+      - name: Build Slack message
+        id: slack_msg
+        if: |
+          (inputs.skip-draft == false || steps.pr.outputs.is_draft != 'true') &&
+          (inputs.require-full-approval == false || steps.pr.outputs.review_decision == 'APPROVED') &&
+          steps.pr.outputs.already_notified != 'true'
+        run: |
+          {
+            echo "message<<EOF"
+            echo "${{ inputs.slack-message-prefix }}"
+            echo "<${{ steps.pr.outputs.url }}|PR #${{ steps.pr.outputs.number }} — ${{ steps.pr.outputs.title }}>"
+            echo "Base: \`${{ steps.pr.outputs.base }}\`  Head: \`${{ steps.pr.outputs.head_sha }}\`"
+            echo "Approved by: \`${{ github.event.review.user.login }}\`"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Post to Slack
         if: |
           (inputs.skip-draft == false || steps.pr.outputs.is_draft != 'true') &&
@@ -111,7 +127,7 @@ jobs:
           webhook: ${{ secrets.SLACK_RELEASE_CHANGELOG_WEBHOOK }}
           payload: |
             {
-              "text": ${{ toJSON(format('{0}\n<{1}|PR #{2} — {3}>\nBase: `{4}`  Head: `{5}`\nApproved by: `{6}`', inputs.slack-message-prefix, steps.pr.outputs.url, steps.pr.outputs.number, steps.pr.outputs.title, steps.pr.outputs.base, steps.pr.outputs.head_sha, github.event.review.user.login)) }}
+              "text": ${{ toJSON(steps.slack_msg.outputs.message) }}
             }
 
       - name: Summary (notification sent)
