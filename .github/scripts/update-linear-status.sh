@@ -16,32 +16,6 @@ fi
 TICKET_COUNT=$(echo "$TICKETS_JSON" | jq '. | length')
 echo "Updating status for $TICKET_COUNT tickets..."
 
-# First, we need to get the "Done" workflow state ID from Linear
-# We'll fetch workflow states and find the one named "Done"
-WORKFLOW_QUERY=$(cat <<'EOF'
-{
-  "query": "query { workflowStates { nodes { id name } } }"
-}
-EOF
-)
-
-WORKFLOW_RESPONSE=$(curl -s -X POST \
-  -H "Content-Type: application/json" \
-  -H "Authorization: ${LINEAR_API_KEY}" \
-  -d "$WORKFLOW_QUERY" \
-  https://api.linear.app/graphql)
-
-DONE_STATE_ID=$(echo "$WORKFLOW_RESPONSE" | jq -r '.data.workflowStates.nodes[] | select(.name == "Done") | .id' | head -n1)
-
-if [ -z "$DONE_STATE_ID" ]; then
-  echo "Error: Could not find 'Done' workflow state in Linear."
-  echo "Available states:"
-  echo "$WORKFLOW_RESPONSE" | jq -r '.data.workflowStates.nodes[] | "  - \(.name)"'
-  exit 1
-fi
-
-echo "Found 'Done' state ID: $DONE_STATE_ID"
-
 # Update each ticket
 UPDATED_COUNT=0
 FAILED_COUNT=0
@@ -49,10 +23,10 @@ FAILED_COUNT=0
 for i in $(seq 0 $((TICKET_COUNT - 1))); do
   TICKET_ID=$(echo "$TICKETS_JSON" | jq -r ".[$i]")
 
-  # First, get the issue ID (not the identifier like "DEV-123")
+  # Get the issue ID, current state, and team's Done state in one query
   ISSUE_QUERY=$(cat <<EOF
 {
-  "query": "query { issue(id: \"$TICKET_ID\") { id identifier state { name } } }"
+  "query": "query { issue(id: \"$TICKET_ID\") { id identifier state { name } team { states { nodes { id name } } } } }"
 }
 EOF
 )
@@ -75,6 +49,15 @@ EOF
   if [ "$CURRENT_STATE" = "Done" ]; then
     echo "  [SKIP] ${TICKET_ID} - Already in Done state"
     ((UPDATED_COUNT++))
+    continue
+  fi
+
+  # Get the Done state ID for this issue's team
+  DONE_STATE_ID=$(echo "$ISSUE_RESPONSE" | jq -r '.data.issue.team.states.nodes[] | select(.name == "Done") | .id' | head -n1)
+
+  if [ -z "$DONE_STATE_ID" ]; then
+    echo "  [FAIL] ${TICKET_ID} - Could not find 'Done' state for issue's team"
+    ((FAILED_COUNT++))
     continue
   fi
 

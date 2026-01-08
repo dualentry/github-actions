@@ -12,7 +12,7 @@ on:
         description: "If true, only notify when reviewDecision is APPROVED. If false, notify on first approval."
         required: false
         type: boolean
-        default: false
+        default: true
       slack-message-prefix:
         description: "Custom prefix for Slack message (emoji + text)"
         required: false
