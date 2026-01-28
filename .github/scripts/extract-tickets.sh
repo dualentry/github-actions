@@ -1,16 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
-# Extract Linear ticket IDs from git commits
+# Extract Linear ticket IDs from git commits (subject + body)
 # Supports formats: [PREFIX]-123 where PREFIX is any 2-10 letter code
-# Examples: ACC-123, DEV-456, MREC-789, RECS-012, etc.
+# Examples: ACC-123, DEV-456, MREC-789, RECS-012, REP-434, etc.
 # Usage: ./extract-tickets.sh <base-ref> <head-ref>
 
 BASE_REF="${1:-origin/dev}"
 HEAD_REF="${2:-HEAD}"
 
-# Get all commit messages between base and head
-COMMITS=$(git log --oneline "${BASE_REF}..${HEAD_REF}" 2>/dev/null || echo "")
+# Get all commit messages between base and head (including body)
+COMMITS=$(git log --format="%s%n%b" "${BASE_REF}..${HEAD_REF}" 2>/dev/null || echo "")
 
 # Also check PR title if available
 PR_TITLE="${PR_TITLE:-}"

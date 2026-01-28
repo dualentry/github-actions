@@ -16,16 +16,19 @@ Your GitHub organization must have the following secrets configured:
 
 ## Ticket Format
 
-The workflows extract ticket IDs from commit messages and PR titles using the following pattern:
+The workflows extract ticket IDs from commit messages (including subject and body) and PR titles using the following pattern:
 
-- **Format**: `(ACC|DEV|acc|dev)[-_]<number>`
+- **Format**: `[PREFIX][-_]<number>` where PREFIX is any 2-10 letter code (case insensitive)
 - **Examples**:
   - `ACC-123`
   - `DEV-456`
-  - `acc_789`
-  - `dev-012`
+  - `REP-434`
+  - `MREC-789`
+  - `acc_012` (underscores are normalized to dashes)
   - `feat: add new feature (DEV-8139)`
   - `Merge pull request #123 from dualentry/martins/dev-8282-endpoints`
+
+**Note**: The script searches both the commit subject line AND the commit body, so tickets mentioned anywhere in the full commit message will be detected.
 
 Commits without ticket IDs are automatically skipped.
 
